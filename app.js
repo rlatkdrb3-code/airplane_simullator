@@ -1,6 +1,10 @@
 const firstEconomyRow = 28;
 const lastEconomyRow = 53;
 const jetBridgeSeconds = 30;
+const walkingSpeedMps = 1.0;
+const economyPitchMeters = 0.85;
+const cabinRowTravelSeconds = economyPitchMeters / walkingSpeedMps;
+const simStepSeconds = 0.5;
 const erlangShape = 2;
 const gateServersFixed = 2;
 const seatLetters = ["A", "B", "C", "D", "E", "F", "G", "H", "J"];
@@ -102,6 +106,11 @@ function shuffle(items, random) {
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
   return copy;
+}
+
+function formatSeconds(value) {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? `${rounded}초` : `${rounded.toFixed(1)}초`;
 }
 
 function seatType(seat) {
@@ -293,7 +302,7 @@ function createSimulation(strategy = state.strategy, animate = true) {
 }
 
 function addEvent(sim, text) {
-  sim.events.unshift(`[${sim.time}초] ${text}`);
+  sim.events.unshift(`[${formatSeconds(sim.time)}] ${text}`);
   sim.events = sim.events.slice(0, 9);
 }
 
@@ -304,7 +313,7 @@ function markSeatOccupied(sim, passenger) {
 
 function stepSimulation(sim) {
   if (sim.done) return;
-  sim.time += 1;
+  sim.time += simStepSeconds;
 
   for (let aisleIndex = 0; aisleIndex < sim.aisles.length; aisleIndex += 1) {
     const aisle = sim.aisles[aisleIndex];
@@ -315,7 +324,7 @@ function stepSimulation(sim) {
       const targetPosition = rowDepth(passenger.row);
 
       if (passenger.status === "loading") {
-        passenger.wait -= 1;
+        passenger.wait -= simStepSeconds;
         if (passenger.wait <= 0) {
           passenger.status = "seated";
           aisle[row] = null;
@@ -323,6 +332,10 @@ function stepSimulation(sim) {
           markSeatOccupied(sim, passenger);
           addEvent(sim, `${passenger.label} 승객 착석 완료`);
         }
+        continue;
+      }
+
+      if (passenger.nextMoveAt && sim.time < passenger.nextMoveAt) {
         continue;
       }
 
@@ -343,6 +356,7 @@ function stepSimulation(sim) {
         aisle[nextRow] = passenger;
         aisle[row] = null;
         passenger.position = nextRow;
+        passenger.nextMoveAt = sim.time + cabinRowTravelSeconds;
       } else {
         sim.blockedTicks += 1;
       }
@@ -372,6 +386,7 @@ function stepSimulation(sim) {
     if (entryAisle[0] === null) {
       passenger.status = "moving";
       passenger.position = 0;
+      passenger.nextMoveAt = sim.time + cabinRowTravelSeconds;
       entryAisle[0] = passenger;
       sim.bridgePassengers.splice(i, 1);
     } else {
@@ -506,19 +521,19 @@ function renderQueue() {
 function renderStats() {
   const sim = state.sim;
   const gate = mmcMetrics();
-  els.totalTime.textContent = `${sim?.time || 0}초`;
+  els.totalTime.textContent = sim ? formatSeconds(sim.time) : "0초";
   els.blockedTicks.textContent = `${sim?.blockedTicks || 0}회`;
   els.seatInterference.textContent = `${sim?.seatInterference || 0}회`;
   els.strategyNote.textContent = strategyNotes[state.strategy];
   els.rhoValue.textContent = Number.isFinite(gate.rho) ? gate.rho.toFixed(2) : "불안정";
   els.lqValue.textContent = Number.isFinite(gate.lq) ? `${gate.lq.toFixed(1)}명` : "무한대";
   els.wqValue.textContent = Number.isFinite(gate.wqSeconds) ? `${gate.wqSeconds.toFixed(1)}초` : "무한대";
-  els.releaseValue.textContent = `${gate.releaseInterval.toFixed(1)}초`;
+  els.releaseValue.textContent = formatSeconds(gate.releaseInterval);
   els.mmNote.textContent = gate.stable
     ? `λ=${state.arrivalRate}명/분, μ=${state.serviceRate}명/분, c=${state.gateServers}일 때 ρ<1이라 안정 상태입니다. 평균적으로 ${gate.releaseInterval.toFixed(1)}초마다 승객이 기내 단계로 넘어갑니다.`
     : `λ가 2μ보다 커서 ρ≥1입니다. 이 경우 M/E₂/2 대기열은 안정 상태가 아니므로 게이트 앞 대기열이 계속 증가합니다.`;
   if (gate.stable) {
-    els.mmNote.textContent = `λ=${state.arrivalRate}명/분, μ=${state.serviceRate}명/분, c=2, Erlang k=2입니다. M/M/2 대기시간에 Erlang 서비스 변동 보정계수 ${gate.erlangVariabilityFactor.toFixed(2)}를 곱해 M/E₂/2로 근사했고, 탑승교 30초 이동 후 평균 ${gate.releaseInterval.toFixed(1)}초마다 기내로 들어갑니다.`;
+    els.mmNote.textContent = `λ=${state.arrivalRate}명/분, μ=${state.serviceRate}명/분, c=2, Erlang k=2입니다. 탑승교는 30초, 기내 통로는 좌석 pitch 0.85m와 보행속도 1.0m/s를 적용해 행당 ${cabinRowTravelSeconds.toFixed(2)}초 이동으로 계산합니다.`;
   }
 }
 
@@ -544,7 +559,7 @@ function renderPopulationChart(sim) {
       <polygon class="lt-area" points="${areaPoints}"></polygon>
       <polyline class="lt-line" points="${points.join(" ")}"></polyline>
       <text class="lt-label" x="${pad}" y="15">L(t)=미착석 승객 수</text>
-      <text class="lt-label" x="${width - 92}" y="${height - 7}">${maxTime}초</text>
+      <text class="lt-label" x="${width - 92}" y="${height - 7}">${formatSeconds(maxTime)}</text>
       <text class="lt-label" x="4" y="${pad + 4}">${maxN}명</text>
       <text class="lt-label" x="8" y="${height - pad}">0</text>
     </svg>
@@ -562,7 +577,7 @@ function renderPureDeath() {
   els.totalPassengersValue.textContent = `${sim.passengers.length}명`;
   els.remainingPassengersValue.textContent = `${remainingCount(sim)}명`;
   els.currentMuValue.textContent = latest ? `${latest.muPerMinute.toFixed(2)}명/분` : "-";
-  els.avgTransitionValue.textContent = avgDuration ? `${avgDuration.toFixed(1)}초` : "-";
+  els.avgTransitionValue.textContent = avgDuration ? formatSeconds(avgDuration) : "-";
   renderPopulationChart(sim);
 }
 
@@ -630,7 +645,7 @@ function renderComparison(results) {
     row.innerHTML = `
       <div class="bar-label">${strategyNames[result.strategy]}</div>
       <div class="bar-track"><div class="bar" style="width: ${(result.time / maxTime) * 100}%"></div></div>
-      <div class="bar-value">${result.time}초</div>
+      <div class="bar-value">${formatSeconds(result.time)}</div>
     `;
     els.comparisonChart.appendChild(row);
   }
