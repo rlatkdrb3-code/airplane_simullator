@@ -5,7 +5,6 @@ const walkingSpeedMps = 1.0;
 const economyPitchMeters = 0.85;
 const cabinRowTravelSeconds = economyPitchMeters / walkingSpeedMps;
 const simStepSeconds = 0.5;
-const boardingReleaseScale = 0.35;
 const erlangShape = 2;
 const gateServersFixed = 2;
 const seatLetters = ["A", "B", "C", "D", "E", "F", "G", "H", "J"];
@@ -160,7 +159,7 @@ function factorial(value) {
 function mmcMetrics(lambda = state.arrivalRate, mu = state.serviceRate, servers = gateServersFixed) {
   const rho = lambda / (servers * mu);
   const capacityRate = Math.min(lambda, servers * mu);
-  const releaseInterval = (60 / Math.max(capacityRate, 0.1)) * boardingReleaseScale;
+  const releaseInterval = 60 / Math.max(capacityRate, 0.1);
 
   if (rho >= 1) {
     return {
