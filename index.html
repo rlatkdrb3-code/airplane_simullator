@@ -13,7 +13,7 @@
           <p class="eyebrow">Queueing Theory Boarding Lab</p>
           <h1>비행기 좌석 배정 방식별 탑승 시뮬레이터</h1>
           <p class="lead">
-            랜덤 탑승, 뒷자리 우선, 창가자리 우선, WilMA, 역피라미드 방식의 통로 정체와 좌석 간섭을 비교합니다.
+            대한항공 B777-300ER 277석형의 이코노미 구간을 기준으로 게이트 M/E₂/2, 탑승교 30m, 기내 착석 과정을 연결해 비교합니다.
           </p>
         </div>
         <div class="summary-panel" aria-label="현재 시뮬레이션 요약">
@@ -56,8 +56,8 @@
 
           <label>
             행 수
-            <input id="rows" type="range" min="8" max="30" value="18" step="1" />
-            <span class="range-readout"><span id="rowsLabel">18</span>행</span>
+            <input id="rows" type="range" min="26" max="26" value="26" step="1" disabled />
+            <span class="range-readout">B777 이코노미 28~53행</span>
           </label>
 
           <label>
@@ -66,7 +66,7 @@
             <span class="range-readout"><span id="bagTimeLabel">4</span>초</span>
           </label>
 
-          <h2>게이트 M/M/c</h2>
+          <h2>게이트 M/E₂/2</h2>
 
           <label>
             도착률 λ
@@ -81,9 +81,9 @@
           </label>
 
           <label>
-            게이트 창구 수 c
-            <input id="gateServers" type="range" min="1" max="5" value="2" step="1" />
-            <span class="range-readout"><span id="gateServersLabel">2</span>개</span>
+            탑승교 구조
+            <input id="gateServers" type="range" min="2" max="2" value="2" step="1" disabled />
+            <span class="range-readout">창구 2개, 탑승교 30m, 보행속도 1m/s</span>
           </label>
 
           <label>
@@ -118,8 +118,8 @@
       <section class="analytics">
         <div class="chart-panel">
           <div class="panel-title">
-            <h2>M/M/c 게이트 분석</h2>
-            <p>포아송 도착, 지수 서비스, c개 창구 기준</p>
+            <h2>M/E₂/2 게이트 분석</h2>
+            <p>포아송 도착, Erlang-2 서비스, 2개 창구 기준</p>
           </div>
           <div class="mm-grid">
             <div>

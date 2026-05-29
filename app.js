@@ -1,8 +1,16 @@
-const seatLetters = ["A", "B", "C", "D", "E", "F"];
-const leftSide = new Set(["A", "B", "C"]);
-const windowSeats = new Set(["A", "F"]);
-const middleSeats = new Set(["B", "E"]);
-const aisleSeats = new Set(["C", "D"]);
+const firstEconomyRow = 28;
+const lastEconomyRow = 53;
+const jetBridgeSeconds = 30;
+const erlangShape = 2;
+const gateServersFixed = 2;
+const seatLetters = ["A", "B", "C", "D", "E", "F", "G", "H", "J"];
+const windowSeats = new Set(["A", "J"]);
+const middleSeats = new Set(["B", "E", "H"]);
+const aisleSeats = new Set(["C", "D", "F", "G"]);
+const leftCabinSeats = new Set(["A", "B", "C"]);
+const centerCabinSeats = new Set(["D", "E", "F"]);
+const rightCabinSeats = new Set(["G", "H", "J"]);
+const aircraftSeats = buildAircraftSeats();
 
 const strategyNames = {
   random: "랜덤 탑승",
@@ -23,12 +31,12 @@ const strategyNotes = {
 };
 
 const state = {
-  rows: 18,
+  rows: lastEconomyRow - firstEconomyRow + 1,
   loadFactor: 92,
   bagTime: 4,
   arrivalRate: 13,
   serviceRate: 7,
-  gateServers: 2,
+  gateServers: gateServersFixed,
   speed: 5,
   strategy: "random",
   running: false,
@@ -101,10 +109,35 @@ function seatType(seat) {
   return 2;
 }
 
-function rowBand(row, rows) {
-  if (row > rows * 0.66) return 0;
-  if (row > rows * 0.33) return 1;
+function rowDepth(row) {
+  return row - firstEconomyRow;
+}
+
+function rowBand(row) {
+  const depth = rowDepth(row);
+  if (depth > state.rows * 0.66) return 0;
+  if (depth > state.rows * 0.33) return 1;
   return 2;
+}
+
+function buildAircraftSeats() {
+  const seats = [];
+  for (let row = firstEconomyRow; row <= lastEconomyRow; row += 1) {
+    for (const seat of seatLetters) seats.push({ row, seat, id: `${row}${seat}` });
+  }
+
+  const removeForPublishedEconomyCount = new Set(["28A", "28J", "53C", "53D", "53F", "53G", "53E"]);
+  return seats.filter((seat) => !removeForPublishedEconomyCount.has(seat.id));
+}
+
+function isSeatAvailable(row, seat) {
+  return aircraftSeats.some((candidate) => candidate.row === row && candidate.seat === seat);
+}
+
+function aisleForSeat(seat) {
+  if (leftCabinSeats.has(seat)) return 0;
+  if (rightCabinSeats.has(seat)) return 1;
+  return seat === "F" ? 1 : 0;
 }
 
 function factorial(value) {
@@ -113,7 +146,7 @@ function factorial(value) {
   return result;
 }
 
-function mmcMetrics(lambda = state.arrivalRate, mu = state.serviceRate, servers = state.gateServers) {
+function mmcMetrics(lambda = state.arrivalRate, mu = state.serviceRate, servers = gateServersFixed) {
   const rho = lambda / (servers * mu);
   const capacityRate = Math.min(lambda, servers * mu);
   const releaseInterval = 60 / Math.max(capacityRate, 0.1);
@@ -135,7 +168,9 @@ function mmcMetrics(lambda = state.arrivalRate, mu = state.serviceRate, servers 
   }
   const last = traffic ** servers / (factorial(servers) * (1 - rho));
   const p0 = 1 / (sum + last);
-  const lq = (p0 * traffic ** servers * rho) / (factorial(servers) * (1 - rho) ** 2);
+  const mmLq = (p0 * traffic ** servers * rho) / (factorial(servers) * (1 - rho) ** 2);
+  const erlangVariabilityFactor = (1 + 1 / erlangShape) / 2;
+  const lq = mmLq * erlangVariabilityFactor;
   const wqSeconds = (lq / lambda) * 60;
 
   return {
@@ -144,6 +179,7 @@ function mmcMetrics(lambda = state.arrivalRate, mu = state.serviceRate, servers 
     wqSeconds,
     releaseInterval,
     stable: true,
+    erlangVariabilityFactor,
   };
 }
 
@@ -152,16 +188,12 @@ function insideOutOddEvenGroup(passenger) {
 }
 
 function makePassengerList(rows, loadFactor, random) {
-  const seats = [];
-  for (let row = 1; row <= rows; row += 1) {
-    for (const seat of seatLetters) seats.push({ row, seat, id: `${row}${seat}` });
-  }
-  return shuffle(seats, random).slice(0, Math.round(seats.length * (loadFactor / 100)));
+  return shuffle(aircraftSeats, random).slice(0, Math.round(aircraftSeats.length * (loadFactor / 100)));
 }
 
 function orderPassengers(passengers, strategy, rows, random) {
   const withTie = passengers.map((passenger) => ({ ...passenger, tie: random() }));
-  const bySeatType = (a, b) => seatType(a.seat) - seatType(b.seat) || b.row - a.row || a.tie - b.tie;
+  const bySeatType = (a, b) => seatType(a.seat) - seatType(b.seat) || b.row - a.row || aisleForSeat(a.seat) - aisleForSeat(b.seat) || a.tie - b.tie;
 
   if (strategy === "random") return shuffle(withTie, random);
   if (strategy === "backToFront") return withTie.sort((a, b) => b.row - a.row || a.tie - b.tie);
@@ -172,7 +204,7 @@ function orderPassengers(passengers, strategy, rows, random) {
   }
 
   return withTie.sort((a, b) => {
-    const bandDiff = rowBand(a.row, rows) - rowBand(b.row, rows);
+    const bandDiff = rowBand(a.row) - rowBand(b.row);
     return bandDiff || seatType(a.seat) - seatType(b.seat) || b.row - a.row || a.tie - b.tie;
   });
 }
@@ -180,9 +212,14 @@ function orderPassengers(passengers, strategy, rows, random) {
 function interferenceFor(passenger, occupied) {
   const { row, seat } = passenger;
   const rowSeats = occupied.get(row) || new Set();
-  const blockers = leftSide.has(seat)
-    ? seatLetters.filter((candidate) => leftSide.has(candidate) && seatLetters.indexOf(candidate) > seatLetters.indexOf(seat))
-    : seatLetters.filter((candidate) => !leftSide.has(candidate) && seatLetters.indexOf(candidate) < seatLetters.indexOf(seat));
+  let blockers = [];
+  if (leftCabinSeats.has(seat)) {
+    blockers = ["A", "B", "C"].filter((candidate) => seatLetters.indexOf(candidate) > seatLetters.indexOf(seat));
+  } else if (rightCabinSeats.has(seat)) {
+    blockers = ["G", "H", "J"].filter((candidate) => seatLetters.indexOf(candidate) < seatLetters.indexOf(seat));
+  } else if (seat === "E") {
+    blockers = ["D", "F"];
+  }
   return blockers.filter((candidate) => rowSeats.has(candidate)).length;
 }
 
@@ -226,6 +263,7 @@ function createSimulation(strategy = state.strategy, animate = true) {
     label: passenger.id,
     index,
     position: -1,
+    aisleIndex: aisleForSeat(passenger.seat),
     status: "queue",
     wait: 0,
     bagDuration: 0,
@@ -237,10 +275,10 @@ function createSimulation(strategy = state.strategy, animate = true) {
     strategy,
     time: 0,
     nextIndex: 0,
-    aisle: Array(state.rows).fill(null),
+    aisles: [Array(state.rows).fill(null), Array(state.rows).fill(null)],
     seated: new Map(),
     passengers: queue,
-    nextGateRelease: 0,
+    nextGateRelease: jetBridgeSeconds,
     gateHoldTicks: 0,
     lastTransitionTime: 0,
     transitionSamples: [],
@@ -266,63 +304,71 @@ function stepSimulation(sim) {
   if (sim.done) return;
   sim.time += 1;
 
-  for (let row = state.rows - 1; row >= 0; row -= 1) {
-    const passenger = sim.aisle[row];
-    if (!passenger) continue;
+  for (let aisleIndex = 0; aisleIndex < sim.aisles.length; aisleIndex += 1) {
+    const aisle = sim.aisles[aisleIndex];
+    for (let row = state.rows - 1; row >= 0; row -= 1) {
+      const passenger = aisle[row];
+      if (!passenger) continue;
 
-    const targetPosition = passenger.row - 1;
+      const targetPosition = rowDepth(passenger.row);
 
-    if (passenger.status === "loading") {
-      passenger.wait -= 1;
-      if (passenger.wait <= 0) {
-        passenger.status = "seated";
-        sim.aisle[row] = null;
-        recordTransition(sim);
-        markSeatOccupied(sim, passenger);
-        addEvent(sim, `${passenger.label} 승객 착석 완료`);
+      if (passenger.status === "loading") {
+        passenger.wait -= 1;
+        if (passenger.wait <= 0) {
+          passenger.status = "seated";
+          aisle[row] = null;
+          recordTransition(sim);
+          markSeatOccupied(sim, passenger);
+          addEvent(sim, `${passenger.label} 승객 착석 완료`);
+        }
+        continue;
       }
-      continue;
-    }
 
-    if (row === targetPosition) {
-      passenger.interference = interferenceFor(passenger, sim.seated);
-      passenger.bagDuration = state.bagTime + passenger.interference * 3 + Math.floor(passenger.tie * 3);
-      passenger.wait = passenger.bagDuration;
-      passenger.status = "loading";
-      sim.seatInterference += passenger.interference;
-      if (passenger.interference > 0) {
-        addEvent(sim, `${passenger.label} 좌석 진입 중 ${passenger.interference}명 비켜섬`);
+      if (row === targetPosition) {
+        passenger.interference = interferenceFor(passenger, sim.seated);
+        passenger.bagDuration = state.bagTime + passenger.interference * 3 + Math.floor(passenger.tie * 3);
+        passenger.wait = passenger.bagDuration;
+        passenger.status = "loading";
+        sim.seatInterference += passenger.interference;
+        if (passenger.interference > 0) {
+          addEvent(sim, `${passenger.label} 좌석 진입 중 ${passenger.interference}명 비켜섬`);
+        }
+        continue;
       }
-      continue;
-    }
 
-    const nextRow = row + 1;
-    if (nextRow < state.rows && sim.aisle[nextRow] === null) {
-      sim.aisle[nextRow] = passenger;
-      sim.aisle[row] = null;
-      passenger.position = nextRow;
-    } else {
-      sim.blockedTicks += 1;
+      const nextRow = row + 1;
+      if (nextRow < state.rows && aisle[nextRow] === null) {
+        aisle[nextRow] = passenger;
+        aisle[row] = null;
+        passenger.position = nextRow;
+      } else {
+        sim.blockedTicks += 1;
+      }
     }
   }
 
   const gate = mmcMetrics();
   const canReleaseFromGate = sim.time >= sim.nextGateRelease;
 
-  if (sim.nextIndex < sim.passengers.length && sim.aisle[0] === null && canReleaseFromGate) {
+  if (sim.nextIndex < sim.passengers.length && canReleaseFromGate) {
     const passenger = sim.passengers[sim.nextIndex];
-    passenger.status = "moving";
-    passenger.position = 0;
-    sim.aisle[0] = passenger;
-    sim.nextIndex += 1;
-    sim.nextGateRelease = sim.time + gate.releaseInterval;
-  } else if (sim.nextIndex < sim.passengers.length && sim.aisle[0] !== null) {
+    const entryAisle = sim.aisles[passenger.aisleIndex];
+    if (entryAisle[0] === null) {
+      passenger.status = "moving";
+      passenger.position = 0;
+      entryAisle[0] = passenger;
+      sim.nextIndex += 1;
+      sim.nextGateRelease = sim.time + gate.releaseInterval;
+    } else {
+      sim.blockedTicks += 1;
+    }
+  } else if (sim.nextIndex < sim.passengers.length && sim.aisles.some((aisle) => aisle[0] !== null)) {
     sim.blockedTicks += 1;
   } else if (sim.nextIndex < sim.passengers.length && !canReleaseFromGate) {
     sim.gateHoldTicks += 1;
   }
 
-  sim.done = sim.nextIndex >= sim.passengers.length && sim.aisle.every((spot) => spot === null);
+  sim.done = sim.nextIndex >= sim.passengers.length && sim.aisles.every((aisle) => aisle.every((spot) => spot === null));
   recordPopulationHistory(sim);
 }
 
@@ -330,7 +376,7 @@ function renderAircraft() {
   const sim = state.sim;
   els.aircraft.innerHTML = "";
 
-  for (let row = state.rows; row >= 1; row -= 1) {
+  for (let row = lastEconomyRow; row >= firstEconomyRow; row -= 1) {
     const rowEl = document.createElement("div");
     rowEl.className = "row";
 
@@ -341,24 +387,38 @@ function renderAircraft() {
 
     for (const seat of ["A", "B", "C"]) rowEl.appendChild(renderSeat(row, seat, sim));
 
-    const aisle = document.createElement("div");
-    aisle.className = "aisle-cell";
-    const passenger = sim?.aisle[row - 1];
-    if (passenger) aisle.appendChild(renderPassenger(passenger));
-    rowEl.appendChild(aisle);
+    rowEl.appendChild(renderAisle(row, 0, sim));
 
     for (const seat of ["D", "E", "F"]) rowEl.appendChild(renderSeat(row, seat, sim));
 
+    rowEl.appendChild(renderAisle(row, 1, sim));
+
+    for (const seat of ["G", "H", "J"]) rowEl.appendChild(renderSeat(row, seat, sim));
+
     els.aircraft.appendChild(rowEl);
   }
+}
+
+function renderAisle(row, aisleIndex, sim) {
+  const aisle = document.createElement("div");
+  aisle.className = "aisle-cell";
+  const passenger = sim?.aisles[aisleIndex]?.[rowDepth(row)];
+  if (passenger) aisle.appendChild(renderPassenger(passenger));
+  return aisle;
 }
 
 function renderSeat(row, seat, sim) {
   const seatEl = document.createElement("div");
   seatEl.className = "seat";
   seatEl.textContent = seat;
+  if (!isSeatAvailable(row, seat)) {
+    seatEl.classList.add("unavailable");
+    seatEl.textContent = "";
+    return seatEl;
+  }
   if (sim?.seated.get(row)?.has(seat)) seatEl.classList.add("occupied");
-  if (sim?.aisle[row - 1]?.row === row && sim.aisle[row - 1].seat === seat) seatEl.classList.add("target");
+  const target = sim?.aisles[aisleForSeat(seat)]?.[rowDepth(row)];
+  if (target?.row === row && target.seat === seat) seatEl.classList.add("target");
   return seatEl;
 }
 
@@ -396,7 +456,10 @@ function renderStats() {
   els.releaseValue.textContent = `${gate.releaseInterval.toFixed(1)}초`;
   els.mmNote.textContent = gate.stable
     ? `λ=${state.arrivalRate}명/분, μ=${state.serviceRate}명/분, c=${state.gateServers}일 때 ρ<1이라 안정 상태입니다. 평균적으로 ${gate.releaseInterval.toFixed(1)}초마다 승객이 기내 단계로 넘어갑니다.`
-    : `λ가 cμ보다 커서 ρ≥1입니다. 이 경우 M/M/c 대기열은 안정 상태가 아니므로 게이트 앞 대기열이 계속 증가합니다.`;
+    : `λ가 2μ보다 커서 ρ≥1입니다. 이 경우 M/E₂/2 대기열은 안정 상태가 아니므로 게이트 앞 대기열이 계속 증가합니다.`;
+  if (gate.stable) {
+    els.mmNote.textContent = `λ=${state.arrivalRate}명/분, μ=${state.serviceRate}명/분, c=2, Erlang k=2입니다. M/M/2 대기시간에 Erlang 서비스 변동 보정계수 ${gate.erlangVariabilityFactor.toFixed(2)}를 곱해 M/E₂/2로 근사했고, 탑승교 30초 이동 후 평균 ${gate.releaseInterval.toFixed(1)}초마다 기내로 들어갑니다.`;
+  }
 }
 
 function renderPopulationChart(sim) {
@@ -535,15 +598,15 @@ function updateSettingsFromControls() {
   state.bagTime = Number(els.bagTime.value);
   state.arrivalRate = Number(els.arrivalRate.value);
   state.serviceRate = Number(els.serviceRate.value);
-  state.gateServers = Number(els.gateServers.value);
+  state.gateServers = gateServersFixed;
   state.speed = Number(els.speed.value);
 
   els.loadFactorLabel.textContent = state.loadFactor;
-  els.rowsLabel.textContent = state.rows;
+  if (els.rowsLabel) els.rowsLabel.textContent = state.rows;
   els.bagTimeLabel.textContent = state.bagTime;
   els.arrivalRateLabel.textContent = state.arrivalRate;
   els.serviceRateLabel.textContent = state.serviceRate;
-  els.gateServersLabel.textContent = state.gateServers;
+  if (els.gateServersLabel) els.gateServersLabel.textContent = state.gateServers;
   els.speedLabel.textContent = state.speed;
   els.strategyNote.textContent = strategyNotes[state.strategy];
 }
