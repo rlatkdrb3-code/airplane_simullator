@@ -1,5 +1,6 @@
 const firstEconomyRow = 28;
 const lastEconomyRow = 53;
+const crossoverAfterRow = 40;
 const jetBridgeSeconds = 30;
 const walkingSpeedMps = 1.0;
 const economyPitchMeters = 0.85;
@@ -150,6 +151,10 @@ function aisleForSeat(seat) {
   return seat === "F" ? 1 : 0;
 }
 
+function canUseCrossover(passenger) {
+  return rowDepth(passenger.row) > rowDepth(crossoverAfterRow);
+}
+
 function factorial(value) {
   let result = 1;
   for (let i = 2; i <= value; i += 1) result *= i;
@@ -274,6 +279,7 @@ function createSimulation(strategy = state.strategy, animate = true) {
     index,
     position: -1,
     aisleIndex: aisleForSeat(passenger.seat),
+    targetAisle: aisleForSeat(passenger.seat),
     status: "queue",
     wait: 0,
     bagDuration: 0,
@@ -339,6 +345,17 @@ function stepSimulation(sim) {
         continue;
       }
 
+      if (row === rowDepth(crossoverAfterRow) && passenger.aisleIndex !== passenger.targetAisle) {
+        const targetAisle = sim.aisles[passenger.targetAisle];
+        if (targetAisle[row] === null) {
+          targetAisle[row] = passenger;
+          aisle[row] = null;
+          passenger.aisleIndex = passenger.targetAisle;
+          passenger.nextMoveAt = sim.time + cabinRowTravelSeconds;
+          continue;
+        }
+      }
+
       if (row === targetPosition) {
         passenger.interference = interferenceFor(passenger, sim.seated);
         passenger.bagDuration = state.bagTime + passenger.interference * 3 + Math.floor(passenger.tie * 3);
@@ -382,10 +399,20 @@ function stepSimulation(sim) {
   for (let i = sim.bridgePassengers.length - 1; i >= 0; i -= 1) {
     const passenger = sim.bridgePassengers[i];
     if (sim.time < passenger.bridgeEnd) continue;
-    const entryAisle = sim.aisles[passenger.aisleIndex];
+    const preferredAisle = sim.aisles[passenger.targetAisle];
+    const alternateAisleIndex = passenger.targetAisle === 0 ? 1 : 0;
+    const alternateAisle = sim.aisles[alternateAisleIndex];
+    let entryAisleIndex = passenger.targetAisle;
+
+    if (preferredAisle[0] !== null && canUseCrossover(passenger) && alternateAisle[0] === null) {
+      entryAisleIndex = alternateAisleIndex;
+    }
+
+    const entryAisle = sim.aisles[entryAisleIndex];
     if (entryAisle[0] === null) {
       passenger.status = "moving";
       passenger.position = 0;
+      passenger.aisleIndex = entryAisleIndex;
       passenger.nextMoveAt = sim.time + cabinRowTravelSeconds;
       entryAisle[0] = passenger;
       sim.bridgePassengers.splice(i, 1);
@@ -426,7 +453,15 @@ function renderAircraft() {
     for (const seat of ["G", "H", "J"]) rowEl.appendChild(renderSeat(row, seat, sim));
 
     els.aircraft.appendChild(rowEl);
+    if (row === crossoverAfterRow) els.aircraft.appendChild(renderCrossover());
   }
+}
+
+function renderCrossover() {
+  const crossover = document.createElement("div");
+  crossover.className = "crossover-column";
+  crossover.innerHTML = "<span>40-41<br>이동 가능</span>";
+  return crossover;
 }
 
 function renderAisle(row, aisleIndex, sim) {
@@ -478,8 +513,9 @@ function renderFlowView() {
 
   els.flowView.innerHTML = `
     <div class="flow-zone gate">게이트 2줄</div>
-    <div class="flow-zone bridge">탑승교 30m</div>
-    <div class="flow-zone cabin">기내 통로와 좌석</div>
+    <div class="flow-zone bridge">탑승교 한 줄</div>
+    <div class="flow-zone cabin">기내 입구에서 좌/우 분기</div>
+    <div class="flow-bridge"><span class="flow-lane-label">탑승교 단일 줄</span></div>
     <div class="flow-lane top"><span class="flow-lane-label">왼쪽 통로 A/B/C · D/E</span></div>
     <div class="flow-lane bottom"><span class="flow-lane-label">오른쪽 통로 F · G/H/J</span></div>
   `;
@@ -495,7 +531,7 @@ function renderFlowView() {
     dot.className = `flow-passenger ${passenger.status === "loading" ? "loading" : ""}`;
     dot.textContent = passenger.label;
     dot.style.left = `${flowPosition(passenger)}%`;
-    dot.style.top = passenger.aisleIndex === 0 ? "89px" : "155px";
+    dot.style.top = passenger.status === "bridge" || passenger.status === "bridge_wait" ? "122px" : passenger.aisleIndex === 0 ? "89px" : "155px";
     dot.title = `${passenger.label}: 게이트에서 좌석까지 좌→우 진행`;
     els.flowView.appendChild(dot);
   }

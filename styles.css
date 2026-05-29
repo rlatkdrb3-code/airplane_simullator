@@ -253,7 +253,7 @@ button.wide {
 
 .flow-lane {
   position: absolute;
-  left: 22px;
+  left: 34%;
   right: 22px;
   height: 42px;
   border-radius: 999px;
@@ -290,6 +290,40 @@ button.wide {
 
 .flow-lane.bottom {
   top: 134px;
+}
+
+.flow-bridge {
+  position: absolute;
+  left: 16%;
+  width: 15%;
+  top: 101px;
+  height: 42px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid #d9e3e6;
+}
+
+.flow-bridge::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 50%;
+  height: 5px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--warning), var(--accent));
+  transform: translateY(-50%);
+}
+
+.flow-bridge::after {
+  content: "→";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  color: var(--accent-dark);
+  font-size: 1.4rem;
+  font-weight: 900;
+  transform: translateY(-54%);
 }
 
 .flow-lane-label {
@@ -508,6 +542,21 @@ button.wide {
   align-items: stretch;
   flex: 0 0 44px;
   min-width: 44px;
+}
+
+.crossover-column {
+  display: grid;
+  place-items: center;
+  flex: 0 0 58px;
+  min-width: 58px;
+  border: 1px dashed var(--accent);
+  border-radius: 6px;
+  background: rgba(14, 124, 123, 0.08);
+  color: var(--accent-dark);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-align: center;
+  line-height: 1.25;
 }
 
 .row-number {
