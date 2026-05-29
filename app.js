@@ -376,7 +376,7 @@ function renderAircraft() {
   const sim = state.sim;
   els.aircraft.innerHTML = "";
 
-  for (let row = lastEconomyRow; row >= firstEconomyRow; row -= 1) {
+  for (let row = firstEconomyRow; row <= lastEconomyRow; row += 1) {
     const rowEl = document.createElement("div");
     rowEl.className = "row";
 
@@ -432,14 +432,19 @@ function renderPassenger(passenger) {
 
 function renderQueue() {
   const sim = state.sim;
-  els.queue.innerHTML = '<div class="queue-label">대기열</div>';
+  els.queue.innerHTML = `
+    <div class="queue-label">게이트 대기열 2줄</div>
+    <div class="gate-lane" data-lane="0"><div class="gate-lane-title">Gate A</div></div>
+    <div class="gate-lane" data-lane="1"><div class="gate-lane-title">Gate B</div></div>
+  `;
   if (!sim) return;
-  const waiting = sim.passengers.slice(sim.nextIndex, sim.nextIndex + 20);
+  const laneEls = els.queue.querySelectorAll(".gate-lane");
+  const waiting = sim.passengers.slice(sim.nextIndex, sim.nextIndex + 32);
   for (const passenger of waiting) {
     const chip = document.createElement("div");
     chip.className = "queue-chip";
     chip.textContent = passenger.label;
-    els.queue.appendChild(chip);
+    laneEls[passenger.aisleIndex]?.appendChild(chip);
   }
 }
 
