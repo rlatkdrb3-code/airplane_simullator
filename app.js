@@ -5,6 +5,7 @@ const walkingSpeedMps = 1.0;
 const economyPitchMeters = 0.85;
 const cabinRowTravelSeconds = economyPitchMeters / walkingSpeedMps;
 const simStepSeconds = 0.5;
+const boardingReleaseScale = 0.35;
 const erlangShape = 2;
 const gateServersFixed = 2;
 const seatLetters = ["A", "B", "C", "D", "E", "F", "G", "H", "J"];
@@ -159,7 +160,7 @@ function factorial(value) {
 function mmcMetrics(lambda = state.arrivalRate, mu = state.serviceRate, servers = gateServersFixed) {
   const rho = lambda / (servers * mu);
   const capacityRate = Math.min(lambda, servers * mu);
-  const releaseInterval = 60 / Math.max(capacityRate, 0.1);
+  const releaseInterval = (60 / Math.max(capacityRate, 0.1)) * boardingReleaseScale;
 
   if (rho >= 1) {
     return {
@@ -390,6 +391,7 @@ function stepSimulation(sim) {
       entryAisle[0] = passenger;
       sim.bridgePassengers.splice(i, 1);
     } else {
+      passenger.status = "bridge_wait";
       sim.blockedTicks += 1;
     }
   }
@@ -463,9 +465,9 @@ function flowPosition(passenger) {
   if (passenger.status === "queue") {
     return 5 + (passenger.index % 12) * 0.55;
   }
-  if (passenger.status === "bridge") {
+  if (passenger.status === "bridge" || passenger.status === "bridge_wait") {
     const progress = Math.max(0, Math.min(1, (state.sim.time - passenger.bridgeStart) / jetBridgeSeconds));
-    return 16 + progress * 15;
+    return passenger.status === "bridge_wait" ? 31 : 16 + progress * 15;
   }
   if (passenger.position < 0) return 5;
   return 34 + (passenger.position / Math.max(state.rows - 1, 1)) * 61;
