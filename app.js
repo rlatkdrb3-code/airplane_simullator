@@ -74,6 +74,7 @@ const els = {
   currentMuValue: document.querySelector("#currentMuValue"),
   avgTransitionValue: document.querySelector("#avgTransitionValue"),
   ltChart: document.querySelector("#ltChart"),
+  flowView: document.querySelector("#flowView"),
   queue: document.querySelector("#queue"),
   aircraft: document.querySelector("#aircraft"),
   comparisonChart: document.querySelector("#comparisonChart"),
@@ -430,6 +431,42 @@ function renderPassenger(passenger) {
   return dot;
 }
 
+function flowPosition(passenger) {
+  if (passenger.status === "queue") {
+    return 5 + (passenger.index % 12) * 0.55;
+  }
+  if (passenger.position < 0) return 5;
+  return 34 + (passenger.position / Math.max(state.rows - 1, 1)) * 61;
+}
+
+function renderFlowView() {
+  const sim = state.sim;
+  if (!sim || !els.flowView) return;
+
+  els.flowView.innerHTML = `
+    <div class="flow-zone gate">게이트 2줄</div>
+    <div class="flow-zone bridge">탑승교 30m</div>
+    <div class="flow-zone cabin">기내 통로와 좌석</div>
+    <div class="flow-lane top"><span class="flow-lane-label">왼쪽 통로 A/B/C · D/E</span></div>
+    <div class="flow-lane bottom"><span class="flow-lane-label">오른쪽 통로 F · G/H/J</span></div>
+  `;
+
+  const active = [
+    ...sim.passengers.slice(sim.nextIndex, sim.nextIndex + 10),
+    ...sim.aisles.flat().filter(Boolean),
+  ];
+
+  for (const passenger of active) {
+    const dot = document.createElement("div");
+    dot.className = `flow-passenger ${passenger.status === "loading" ? "loading" : ""}`;
+    dot.textContent = passenger.label;
+    dot.style.left = `${flowPosition(passenger)}%`;
+    dot.style.top = passenger.aisleIndex === 0 ? "89px" : "155px";
+    dot.title = `${passenger.label}: 게이트에서 좌석까지 좌→우 진행`;
+    els.flowView.appendChild(dot);
+  }
+}
+
 function renderQueue() {
   const sim = state.sim;
   els.queue.innerHTML = `
@@ -524,6 +561,7 @@ function renderEvents() {
 }
 
 function renderAll() {
+  renderFlowView();
   renderAircraft();
   renderQueue();
   renderStats();

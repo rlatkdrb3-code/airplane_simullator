@@ -204,6 +204,110 @@ button.wide {
   min-width: 0;
 }
 
+.flow-view {
+  position: relative;
+  min-height: 210px;
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(14, 124, 123, 0.08) 0 16%, rgba(246, 239, 226, 0.9) 16% 31%, rgba(255, 255, 255, 0.95) 31% 100%),
+    repeating-linear-gradient(90deg, transparent, transparent 38px, rgba(23, 32, 38, 0.04) 38px, rgba(23, 32, 38, 0.04) 39px);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.flow-zone {
+  position: absolute;
+  top: 12px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.flow-zone.gate {
+  left: 18px;
+}
+
+.flow-zone.bridge {
+  left: 18%;
+}
+
+.flow-zone.cabin {
+  left: 34%;
+}
+
+.flow-lane {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  height: 42px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid #d9e3e6;
+}
+
+.flow-lane::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 50%;
+  height: 5px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), #55a681);
+  transform: translateY(-50%);
+}
+
+.flow-lane::after {
+  content: "→";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  color: var(--accent-dark);
+  font-size: 1.4rem;
+  font-weight: 900;
+  transform: translateY(-54%);
+}
+
+.flow-lane.top {
+  top: 68px;
+}
+
+.flow-lane.bottom {
+  top: 134px;
+}
+
+.flow-lane-label {
+  position: absolute;
+  left: 12px;
+  top: -24px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.flow-passenger {
+  position: absolute;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--moving);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 900;
+  box-shadow: 0 8px 16px rgba(217, 60, 85, 0.25);
+  transform: translate(-50%, -50%);
+  transition: left 180ms linear, top 180ms linear;
+}
+
+.flow-passenger.loading {
+  background: var(--warning);
+}
+
 .legend {
   display: flex;
   flex-wrap: wrap;
