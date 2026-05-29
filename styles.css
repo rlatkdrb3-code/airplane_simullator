@@ -120,13 +120,18 @@ h2 {
 }
 
 .workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 22px;
-  align-items: start;
+  align-items: stretch;
+}
+
+.sim-area {
+  order: 1;
 }
 
 .controls {
+  order: 2;
   position: static;
   display: grid;
   grid-template-columns: repeat(4, minmax(180px, 1fr));
