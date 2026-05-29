@@ -277,9 +277,10 @@ function createSimulation(strategy = state.strategy, animate = true) {
     time: 0,
     nextIndex: 0,
     aisles: [Array(state.rows).fill(null), Array(state.rows).fill(null)],
+    bridgePassengers: [],
     seated: new Map(),
     passengers: queue,
-    nextGateRelease: jetBridgeSeconds,
+    nextGateRelease: 0,
     gateHoldTicks: 0,
     lastTransitionTime: 0,
     transitionSamples: [],
@@ -353,23 +354,35 @@ function stepSimulation(sim) {
 
   if (sim.nextIndex < sim.passengers.length && canReleaseFromGate) {
     const passenger = sim.passengers[sim.nextIndex];
+    passenger.status = "bridge";
+    passenger.position = -1;
+    passenger.bridgeStart = sim.time;
+    passenger.bridgeEnd = sim.time + jetBridgeSeconds;
+    sim.bridgePassengers.push(passenger);
+    sim.nextIndex += 1;
+    sim.nextGateRelease = sim.time + gate.releaseInterval;
+  } else if (sim.nextIndex < sim.passengers.length && !canReleaseFromGate) {
+    sim.gateHoldTicks += 1;
+  }
+
+  for (let i = sim.bridgePassengers.length - 1; i >= 0; i -= 1) {
+    const passenger = sim.bridgePassengers[i];
+    if (sim.time < passenger.bridgeEnd) continue;
     const entryAisle = sim.aisles[passenger.aisleIndex];
     if (entryAisle[0] === null) {
       passenger.status = "moving";
       passenger.position = 0;
       entryAisle[0] = passenger;
-      sim.nextIndex += 1;
-      sim.nextGateRelease = sim.time + gate.releaseInterval;
+      sim.bridgePassengers.splice(i, 1);
     } else {
       sim.blockedTicks += 1;
     }
-  } else if (sim.nextIndex < sim.passengers.length && sim.aisles.some((aisle) => aisle[0] !== null)) {
-    sim.blockedTicks += 1;
-  } else if (sim.nextIndex < sim.passengers.length && !canReleaseFromGate) {
-    sim.gateHoldTicks += 1;
   }
 
-  sim.done = sim.nextIndex >= sim.passengers.length && sim.aisles.every((aisle) => aisle.every((spot) => spot === null));
+  sim.done =
+    sim.nextIndex >= sim.passengers.length &&
+    sim.bridgePassengers.length === 0 &&
+    sim.aisles.every((aisle) => aisle.every((spot) => spot === null));
   recordPopulationHistory(sim);
 }
 
@@ -435,6 +448,10 @@ function flowPosition(passenger) {
   if (passenger.status === "queue") {
     return 5 + (passenger.index % 12) * 0.55;
   }
+  if (passenger.status === "bridge") {
+    const progress = Math.max(0, Math.min(1, (state.sim.time - passenger.bridgeStart) / jetBridgeSeconds));
+    return 16 + progress * 15;
+  }
   if (passenger.position < 0) return 5;
   return 34 + (passenger.position / Math.max(state.rows - 1, 1)) * 61;
 }
@@ -453,6 +470,7 @@ function renderFlowView() {
 
   const active = [
     ...sim.passengers.slice(sim.nextIndex, sim.nextIndex + 10),
+    ...sim.bridgePassengers,
     ...sim.aisles.flat().filter(Boolean),
   ];
 
