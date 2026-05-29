@@ -113,10 +113,6 @@ function formatSeconds(value) {
   return Number.isInteger(rounded) ? `${rounded}초` : `${rounded.toFixed(1)}초`;
 }
 
-function serviceRateLabel(ratePerMinute) {
-  return `${ratePerMinute}명/분 (${(60 / ratePerMinute).toFixed(1)}초/명)`;
-}
-
 function seatType(seat) {
   if (windowSeats.has(seat)) return 0;
   if (middleSeats.has(seat)) return 1;
@@ -686,7 +682,7 @@ function updateSettingsFromControls() {
   if (els.rowsLabel) els.rowsLabel.textContent = state.rows;
   els.bagTimeLabel.textContent = state.bagTime;
   els.arrivalRateLabel.textContent = state.arrivalRate;
-  els.serviceRateLabel.textContent = serviceRateLabel(state.serviceRate);
+  els.serviceRateLabel.textContent = state.serviceRate;
   if (els.gateServersLabel) els.gateServersLabel.textContent = state.gateServers;
   els.speedLabel.textContent = state.speed;
   els.strategyNote.textContent = strategyNotes[state.strategy];
