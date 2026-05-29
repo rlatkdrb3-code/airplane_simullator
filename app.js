@@ -61,6 +61,11 @@ const els = {
   wqValue: document.querySelector("#wqValue"),
   releaseValue: document.querySelector("#releaseValue"),
   mmNote: document.querySelector("#mmNote"),
+  totalPassengersValue: document.querySelector("#totalPassengersValue"),
+  remainingPassengersValue: document.querySelector("#remainingPassengersValue"),
+  currentMuValue: document.querySelector("#currentMuValue"),
+  avgTransitionValue: document.querySelector("#avgTransitionValue"),
+  ltChart: document.querySelector("#ltChart"),
   queue: document.querySelector("#queue"),
   aircraft: document.querySelector("#aircraft"),
   comparisonChart: document.querySelector("#comparisonChart"),
@@ -181,6 +186,38 @@ function interferenceFor(passenger, occupied) {
   return blockers.filter((candidate) => rowSeats.has(candidate)).length;
 }
 
+function seatedCount(sim) {
+  if (!sim) return 0;
+  let count = 0;
+  for (const rowSeats of sim.seated.values()) count += rowSeats.size;
+  return count;
+}
+
+function remainingCount(sim) {
+  if (!sim) return 0;
+  return sim.passengers.length - seatedCount(sim);
+}
+
+function recordTransition(sim) {
+  const duration = sim.time - sim.lastTransitionTime;
+  if (duration <= 0) return;
+  sim.transitionSamples.push({
+    n: remainingCount(sim),
+    duration,
+    muPerMinute: 60 / duration,
+  });
+  sim.lastTransitionTime = sim.time;
+}
+
+function recordPopulationHistory(sim) {
+  const n = remainingCount(sim);
+  const last = sim.populationHistory[sim.populationHistory.length - 1];
+  if (!last || last.time !== sim.time || last.n !== n) {
+    sim.populationHistory.push({ time: sim.time, n });
+  }
+  if (sim.populationHistory.length > 180) sim.populationHistory.shift();
+}
+
 function createSimulation(strategy = state.strategy, animate = true) {
   const random = mulberry32(20260520);
   const passengers = makePassengerList(state.rows, state.loadFactor, random);
@@ -205,6 +242,9 @@ function createSimulation(strategy = state.strategy, animate = true) {
     passengers: queue,
     nextGateRelease: 0,
     gateHoldTicks: 0,
+    lastTransitionTime: 0,
+    transitionSamples: [],
+    populationHistory: [{ time: 0, n: queue.length }],
     blockedTicks: 0,
     seatInterference: 0,
     events: [],
@@ -237,6 +277,7 @@ function stepSimulation(sim) {
       if (passenger.wait <= 0) {
         passenger.status = "seated";
         sim.aisle[row] = null;
+        recordTransition(sim);
         markSeatOccupied(sim, passenger);
         addEvent(sim, `${passenger.label} 승객 착석 완료`);
       }
@@ -282,6 +323,7 @@ function stepSimulation(sim) {
   }
 
   sim.done = sim.nextIndex >= sim.passengers.length && sim.aisle.every((spot) => spot === null);
+  recordPopulationHistory(sim);
 }
 
 function renderAircraft() {
@@ -357,6 +399,50 @@ function renderStats() {
     : `λ가 cμ보다 커서 ρ≥1입니다. 이 경우 M/M/c 대기열은 안정 상태가 아니므로 게이트 앞 대기열이 계속 증가합니다.`;
 }
 
+function renderPopulationChart(sim) {
+  if (!sim || !els.ltChart) return;
+  const history = sim.populationHistory.length ? sim.populationHistory : [{ time: 0, n: sim.passengers.length }];
+  const width = 520;
+  const height = 150;
+  const pad = 22;
+  const maxTime = Math.max(...history.map((point) => point.time), 1);
+  const maxN = Math.max(sim.passengers.length, 1);
+  const points = history.map((point) => {
+    const x = pad + (point.time / maxTime) * (width - pad * 2);
+    const y = pad + ((maxN - point.n) / maxN) * (height - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const areaPoints = [`${pad},${height - pad}`, ...points, `${width - pad},${height - pad}`].join(" ");
+
+  els.ltChart.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="L(t) graph">
+      <line class="lt-axis" x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}"></line>
+      <line class="lt-axis" x1="${pad}" y1="${pad}" x2="${pad}" y2="${height - pad}"></line>
+      <polygon class="lt-area" points="${areaPoints}"></polygon>
+      <polyline class="lt-line" points="${points.join(" ")}"></polyline>
+      <text class="lt-label" x="${pad}" y="15">L(t)=미착석 승객 수</text>
+      <text class="lt-label" x="${width - 92}" y="${height - 7}">${maxTime}초</text>
+      <text class="lt-label" x="4" y="${pad + 4}">${maxN}명</text>
+      <text class="lt-label" x="8" y="${height - pad}">0</text>
+    </svg>
+  `;
+}
+
+function renderPureDeath() {
+  const sim = state.sim;
+  if (!sim) return;
+  const latest = sim.transitionSamples[sim.transitionSamples.length - 1];
+  const avgDuration = sim.transitionSamples.length
+    ? sim.transitionSamples.reduce((sum, sample) => sum + sample.duration, 0) / sim.transitionSamples.length
+    : null;
+
+  els.totalPassengersValue.textContent = `${sim.passengers.length}명`;
+  els.remainingPassengersValue.textContent = `${remainingCount(sim)}명`;
+  els.currentMuValue.textContent = latest ? `${latest.muPerMinute.toFixed(2)}명/분` : "-";
+  els.avgTransitionValue.textContent = avgDuration ? `${avgDuration.toFixed(1)}초` : "-";
+  renderPopulationChart(sim);
+}
+
 function renderEvents() {
   const sim = state.sim;
   els.events.innerHTML = "";
@@ -373,6 +459,7 @@ function renderAll() {
   renderAircraft();
   renderQueue();
   renderStats();
+  renderPureDeath();
   renderEvents();
 }
 

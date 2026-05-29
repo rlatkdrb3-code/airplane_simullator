@@ -368,7 +368,7 @@ button.wide {
 
 .analytics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 22px;
   margin-top: 22px;
 }
@@ -396,13 +396,15 @@ button.wide {
   gap: 10px;
 }
 
-.mm-grid {
+.mm-grid,
+.death-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
-.mm-grid div {
+.mm-grid div,
+.death-grid div {
   min-height: 82px;
   padding: 12px;
   border: 1px solid var(--line);
@@ -410,7 +412,8 @@ button.wide {
   background: #f6f9fa;
 }
 
-.mm-grid span {
+.mm-grid span,
+.death-grid span {
   display: block;
   margin-bottom: 8px;
   color: var(--muted);
@@ -418,8 +421,53 @@ button.wide {
   font-weight: 800;
 }
 
-.mm-grid strong {
+.mm-grid strong,
+.death-grid strong {
   font-size: 1.35rem;
+}
+
+.lt-chart {
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background:
+    linear-gradient(#edf3f4 1px, transparent 1px),
+    linear-gradient(90deg, #edf3f4 1px, transparent 1px),
+    #fff;
+  background-size: 100% 25%, 20% 100%;
+  overflow: hidden;
+}
+
+.lt-chart svg {
+  display: block;
+  width: 100%;
+  height: 150px;
+}
+
+.lt-axis {
+  stroke: #9aaab0;
+  stroke-width: 1;
+}
+
+.lt-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lt-area {
+  fill: rgba(14, 124, 123, 0.12);
+}
+
+.lt-label {
+  fill: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .model-note {

@@ -150,6 +150,32 @@
         </div>
         <div class="chart-panel">
           <div class="panel-title">
+            <h2>기내 Pure Death</h2>
+            <p>미착석 승객 수 N→0 전이 추적</p>
+          </div>
+          <div class="death-grid">
+            <div>
+              <span>전체 승객 N</span>
+              <strong id="totalPassengersValue">0명</strong>
+            </div>
+            <div>
+              <span>현재 미착석 n</span>
+              <strong id="remainingPassengersValue">0명</strong>
+            </div>
+            <div>
+              <span>최근 μₙ</span>
+              <strong id="currentMuValue">-</strong>
+            </div>
+            <div>
+              <span>평균 전이시간</span>
+              <strong id="avgTransitionValue">-</strong>
+            </div>
+          </div>
+          <div id="ltChart" class="lt-chart" aria-label="시간에 따른 미착석 승객 수 그래프"></div>
+          <p class="model-note">승객이 착석할 때마다 n→n−1 전이시간을 기록하고, μₙ=1/E[전이시간]으로 추정합니다.</p>
+        </div>
+        <div class="chart-panel">
+          <div class="panel-title">
             <h2>현재 방식 해석</h2>
             <p id="strategyNote">시작 버튼을 눌러 통로 병목을 관찰하세요.</p>
           </div>
