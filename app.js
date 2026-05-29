@@ -38,7 +38,7 @@ const strategyNotes = {
 const state = {
   rows: lastEconomyRow - firstEconomyRow + 1,
   loadFactor: 92,
-  bagTime: 4,
+  bagTime: 10,
   arrivalRate: 13,
   serviceRate: 7,
   gateServers: gateServersFixed,
