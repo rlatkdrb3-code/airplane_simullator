@@ -26,6 +26,9 @@ const state = {
   rows: 18,
   loadFactor: 92,
   bagTime: 4,
+  arrivalRate: 13,
+  serviceRate: 7,
+  gateServers: 2,
   speed: 5,
   strategy: "random",
   running: false,
@@ -39,14 +42,25 @@ const els = {
   loadFactor: document.querySelector("#loadFactor"),
   rows: document.querySelector("#rows"),
   bagTime: document.querySelector("#bagTime"),
+  arrivalRate: document.querySelector("#arrivalRate"),
+  serviceRate: document.querySelector("#serviceRate"),
+  gateServers: document.querySelector("#gateServers"),
   speed: document.querySelector("#speed"),
   loadFactorLabel: document.querySelector("#loadFactorLabel"),
   rowsLabel: document.querySelector("#rowsLabel"),
   bagTimeLabel: document.querySelector("#bagTimeLabel"),
+  arrivalRateLabel: document.querySelector("#arrivalRateLabel"),
+  serviceRateLabel: document.querySelector("#serviceRateLabel"),
+  gateServersLabel: document.querySelector("#gateServersLabel"),
   speedLabel: document.querySelector("#speedLabel"),
   totalTime: document.querySelector("#totalTime"),
   blockedTicks: document.querySelector("#blockedTicks"),
   seatInterference: document.querySelector("#seatInterference"),
+  rhoValue: document.querySelector("#rhoValue"),
+  lqValue: document.querySelector("#lqValue"),
+  wqValue: document.querySelector("#wqValue"),
+  releaseValue: document.querySelector("#releaseValue"),
+  mmNote: document.querySelector("#mmNote"),
   queue: document.querySelector("#queue"),
   aircraft: document.querySelector("#aircraft"),
   comparisonChart: document.querySelector("#comparisonChart"),
@@ -86,6 +100,46 @@ function rowBand(row, rows) {
   if (row > rows * 0.66) return 0;
   if (row > rows * 0.33) return 1;
   return 2;
+}
+
+function factorial(value) {
+  let result = 1;
+  for (let i = 2; i <= value; i += 1) result *= i;
+  return result;
+}
+
+function mmcMetrics(lambda = state.arrivalRate, mu = state.serviceRate, servers = state.gateServers) {
+  const rho = lambda / (servers * mu);
+  const capacityRate = Math.min(lambda, servers * mu);
+  const releaseInterval = 60 / Math.max(capacityRate, 0.1);
+
+  if (rho >= 1) {
+    return {
+      rho,
+      lq: Infinity,
+      wqSeconds: Infinity,
+      releaseInterval,
+      stable: false,
+    };
+  }
+
+  const traffic = lambda / mu;
+  let sum = 0;
+  for (let n = 0; n < servers; n += 1) {
+    sum += traffic ** n / factorial(n);
+  }
+  const last = traffic ** servers / (factorial(servers) * (1 - rho));
+  const p0 = 1 / (sum + last);
+  const lq = (p0 * traffic ** servers * rho) / (factorial(servers) * (1 - rho) ** 2);
+  const wqSeconds = (lq / lambda) * 60;
+
+  return {
+    rho,
+    lq,
+    wqSeconds,
+    releaseInterval,
+    stable: true,
+  };
 }
 
 function insideOutOddEvenGroup(passenger) {
@@ -149,6 +203,8 @@ function createSimulation(strategy = state.strategy, animate = true) {
     aisle: Array(state.rows).fill(null),
     seated: new Map(),
     passengers: queue,
+    nextGateRelease: 0,
+    gateHoldTicks: 0,
     blockedTicks: 0,
     seatInterference: 0,
     events: [],
@@ -209,14 +265,20 @@ function stepSimulation(sim) {
     }
   }
 
-  if (sim.nextIndex < sim.passengers.length && sim.aisle[0] === null) {
+  const gate = mmcMetrics();
+  const canReleaseFromGate = sim.time >= sim.nextGateRelease;
+
+  if (sim.nextIndex < sim.passengers.length && sim.aisle[0] === null && canReleaseFromGate) {
     const passenger = sim.passengers[sim.nextIndex];
     passenger.status = "moving";
     passenger.position = 0;
     sim.aisle[0] = passenger;
     sim.nextIndex += 1;
-  } else if (sim.nextIndex < sim.passengers.length) {
+    sim.nextGateRelease = sim.time + gate.releaseInterval;
+  } else if (sim.nextIndex < sim.passengers.length && sim.aisle[0] !== null) {
     sim.blockedTicks += 1;
+  } else if (sim.nextIndex < sim.passengers.length && !canReleaseFromGate) {
+    sim.gateHoldTicks += 1;
   }
 
   sim.done = sim.nextIndex >= sim.passengers.length && sim.aisle.every((spot) => spot === null);
@@ -281,10 +343,18 @@ function renderQueue() {
 
 function renderStats() {
   const sim = state.sim;
+  const gate = mmcMetrics();
   els.totalTime.textContent = `${sim?.time || 0}초`;
   els.blockedTicks.textContent = `${sim?.blockedTicks || 0}회`;
   els.seatInterference.textContent = `${sim?.seatInterference || 0}회`;
   els.strategyNote.textContent = strategyNotes[state.strategy];
+  els.rhoValue.textContent = Number.isFinite(gate.rho) ? gate.rho.toFixed(2) : "불안정";
+  els.lqValue.textContent = Number.isFinite(gate.lq) ? `${gate.lq.toFixed(1)}명` : "무한대";
+  els.wqValue.textContent = Number.isFinite(gate.wqSeconds) ? `${gate.wqSeconds.toFixed(1)}초` : "무한대";
+  els.releaseValue.textContent = `${gate.releaseInterval.toFixed(1)}초`;
+  els.mmNote.textContent = gate.stable
+    ? `λ=${state.arrivalRate}명/분, μ=${state.serviceRate}명/분, c=${state.gateServers}일 때 ρ<1이라 안정 상태입니다. 평균적으로 ${gate.releaseInterval.toFixed(1)}초마다 승객이 기내 단계로 넘어갑니다.`
+    : `λ가 cμ보다 커서 ρ≥1입니다. 이 경우 M/M/c 대기열은 안정 상태가 아니므로 게이트 앞 대기열이 계속 증가합니다.`;
 }
 
 function renderEvents() {
@@ -376,17 +446,23 @@ function updateSettingsFromControls() {
   state.loadFactor = Number(els.loadFactor.value);
   state.rows = Number(els.rows.value);
   state.bagTime = Number(els.bagTime.value);
+  state.arrivalRate = Number(els.arrivalRate.value);
+  state.serviceRate = Number(els.serviceRate.value);
+  state.gateServers = Number(els.gateServers.value);
   state.speed = Number(els.speed.value);
 
   els.loadFactorLabel.textContent = state.loadFactor;
   els.rowsLabel.textContent = state.rows;
   els.bagTimeLabel.textContent = state.bagTime;
+  els.arrivalRateLabel.textContent = state.arrivalRate;
+  els.serviceRateLabel.textContent = state.serviceRate;
+  els.gateServersLabel.textContent = state.gateServers;
   els.speedLabel.textContent = state.speed;
   els.strategyNote.textContent = strategyNotes[state.strategy];
 }
 
 function bindControls() {
-  for (const control of [els.strategy, els.loadFactor, els.rows, els.bagTime, els.speed]) {
+  for (const control of [els.strategy, els.loadFactor, els.rows, els.bagTime, els.arrivalRate, els.serviceRate, els.gateServers, els.speed]) {
     control.addEventListener("input", () => {
       updateSettingsFromControls();
       if (control !== els.speed) resetSimulation(false);
