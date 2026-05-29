@@ -370,9 +370,8 @@ button.wide {
 }
 
 .aircraft {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(46px, 1fr);
+  display: flex;
+  align-items: stretch;
   gap: 5px;
   min-width: 1180px;
   padding: 18px 22px;
@@ -389,6 +388,7 @@ button.wide {
   grid-template-rows: 24px repeat(3, minmax(30px, 1fr)) minmax(36px, 0.9fr) repeat(3, minmax(30px, 1fr)) minmax(36px, 0.9fr) repeat(3, minmax(30px, 1fr));
   gap: 4px;
   align-items: stretch;
+  flex: 0 0 44px;
   min-width: 44px;
 }
 
@@ -434,6 +434,24 @@ button.wide {
 .aisle-cell {
   background: var(--aisle);
   border: 1px solid #eadcc8;
+  overflow: visible;
+}
+
+.aisle-cell::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  top: 50%;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(208, 107, 40, 0.28);
+  transform: translateY(-50%);
+}
+
+.aisle-cell .passenger {
+  position: relative;
+  z-index: 2;
 }
 
 .passenger {
