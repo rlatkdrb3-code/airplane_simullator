@@ -33,6 +33,25 @@
       </section>
 
       <section class="workspace">
+        <section class="sim-area">
+          <div class="legend" aria-label="범례">
+            <span><i class="legend-seat empty"></i>빈 좌석</span>
+            <span><i class="legend-seat taken"></i>착석 완료</span>
+            <span><i class="legend-dot moving"></i>이동 중</span>
+            <span><i class="legend-dot loading"></i>짐 싣는 중</span>
+          </div>
+          <div id="flowView" class="flow-view" aria-label="게이트부터 기내 좌석까지 좌우 진행 흐름"></div>
+          <div class="aircraft-wrap">
+            <div id="queue" class="queue" aria-label="탑승 대기열"></div>
+            <div class="jetbridge" aria-label="탑승교">
+              <span>탑승교</span>
+              <strong>30m</strong>
+              <small>1m/s · 30초</small>
+            </div>
+            <div id="aircraft" class="aircraft" aria-label="항공기 좌석 배치"></div>
+          </div>
+        </section>
+
         <aside class="controls" aria-label="시뮬레이션 설정">
           <h2>탑승 조건</h2>
 
@@ -100,25 +119,6 @@
 
           <button id="compareBtn" type="button" class="wide">모든 방식 비교</button>
         </aside>
-
-        <section class="sim-area">
-          <div class="legend" aria-label="범례">
-            <span><i class="legend-seat empty"></i>빈 좌석</span>
-            <span><i class="legend-seat taken"></i>착석 완료</span>
-            <span><i class="legend-dot moving"></i>이동 중</span>
-            <span><i class="legend-dot loading"></i>짐 싣는 중</span>
-          </div>
-          <div id="flowView" class="flow-view" aria-label="게이트부터 기내 좌석까지 좌우 진행 흐름"></div>
-          <div class="aircraft-wrap">
-            <div id="queue" class="queue" aria-label="탑승 대기열"></div>
-            <div class="jetbridge" aria-label="탑승교">
-              <span>탑승교</span>
-              <strong>30m</strong>
-              <small>1m/s · 30초</small>
-            </div>
-            <div id="aircraft" class="aircraft" aria-label="항공기 좌석 배치"></div>
-          </div>
-        </section>
       </section>
 
       <section class="analytics">
